@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RxIntake Pro — Pharmacy Dispensing Record</title>
+<style>
+  :root{
+    --navy:#0f2a47; --blue:#1763b6; --blue2:#2f80ed; --line:#d7dee7;
+    --bg:#eef2f6; --ink:#16202b; --muted:#5b6b7b; --good:#1d8a4e; --bad:#c0392b;
+    --warn:#b9770e; --chip:#e8f0fb;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg)}
+  header.app{background:var(--navy);color:#fff;padding:10px 18px;display:flex;align-items:center;gap:14px}
+  header.app .logo{font-weight:700;letter-spacing:.3px;font-size:16px}
+  header.app .logo span{color:#7fb3f2}
+  header.app .who{margin-left:auto;font-size:12px;opacity:.85;text-align:right}
+  .wrap{max-width:980px;margin:18px auto;padding:0 16px}
+  .steps{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+  .steps .s{flex:1;min-width:120px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--muted);display:flex;gap:8px;align-items:center}
+  .steps .s .n{width:20px;height:20px;border-radius:50%;background:#e3e9f0;color:var(--muted);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px}
+  .steps .s.active{border-color:var(--blue);color:var(--navy);font-weight:600;box-shadow:0 1px 0 var(--blue) inset}
+  .steps .s.active .n{background:var(--blue);color:#fff}
+  .steps .s.done .n{background:var(--good);color:#fff}
+  .card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:18px 20px;box-shadow:0 1px 3px rgba(16,32,52,.05)}
+  .card h2{margin:0 0 2px;font-size:18px;color:var(--navy)}
+  .card .sub{margin:0 0 16px;color:var(--muted);font-size:13px}
+  fieldset{border:1px solid var(--line);border-radius:8px;padding:14px 14px 4px;margin:0 0 16px}
+  legend{padding:0 6px;color:var(--blue);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.4px}
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:12px}
+  .f{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
+  .f.c2{grid-column:span 2}.f.c3{grid-column:span 3}.f.c4{grid-column:span 4}
+  .f.c5{grid-column:span 5}.f.c6{grid-column:span 6}.f.c8{grid-column:span 8}.f.c12{grid-column:span 12}
+  label{font-size:12px;color:var(--muted);font-weight:600}
+  label .req{color:var(--bad)}
+  input,select,textarea{font:inherit;padding:8px 9px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink)}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue2);box-shadow:0 0 0 3px rgba(47,128,237,.15)}
+  input.bad,select.bad,textarea.bad{border-color:var(--bad);background:#fdf3f2}
+  .hint{font-size:11px;color:var(--muted)}
+  .err{font-size:11px;color:var(--bad);min-height:0}
+  .row-allergy{display:grid;grid-template-columns:3fr 3fr 2fr 28px;gap:8px;align-items:end;margin-bottom:8px}
+  .btn{cursor:pointer;border:1px solid var(--line);background:#fff;color:var(--navy);padding:8px 14px;border-radius:7px;font-weight:600}
+  .btn:hover{background:#f3f7fc}
+  .btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+  .btn.primary:hover{background:#1257a0}
+  .btn.ghost{border-style:dashed;color:var(--blue)}
+  .btn.x{padding:6px 9px;color:var(--bad)}
+  .actions{display:flex;gap:10px;justify-content:space-between;margin-top:8px}
+  .pill{display:inline-block;background:var(--chip);color:var(--blue);border-radius:20px;padding:2px 10px;font-size:11px;font-weight:600}
+  .banner{border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:14px;display:none}
+  .banner.show{display:block}
+  .banner.bad{background:#fdecea;color:var(--bad);border:1px solid #f3c4bf}
+  .banner.warn{background:#fdf6e7;color:var(--warn);border:1px solid #f0dca8}
+  .summary{display:grid;grid-template-columns:1fr 1fr;gap:8px 24px}
+  .summary .k{color:var(--muted);font-size:12px}
+  .summary .v{font-weight:600}
+  .summary h3{grid-column:span 2;margin:12px 0 2px;color:var(--navy);font-size:13px;border-bottom:1px solid var(--line);padding-bottom:4px}
+  .done-screen{text-align:center;padding:40px 20px}
+  .done-screen .check{width:64px;height:64px;border-radius:50%;background:var(--good);color:#fff;font-size:34px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px}
+  .rxno{font-family:ui-monospace,Menlo,monospace;font-size:20px;color:var(--navy);font-weight:700}
+  .interaction{background:#fdf6e7;border:1px solid #f0dca8;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:13px;color:var(--warn);display:none}
+  .interaction.show{display:block}
+  .hide{display:none}
+</style>
+</head>
+<body>
+<header class="app">
+  <div class="logo">Rx<span>Intake</span> Pro</div>
+  <div style="font-size:12px;opacity:.8">Pharmacy Dispensing Record</div>
+  <div class="who">Bay Area Community Pharmacy #4471<br>RPh on duty: <b id="rphName">—</b></div>
+</header>
+
+<div class="wrap">
+  <div class="steps" id="steps">
+    <div class="s" data-step="1"><span class="n">1</span> Patient</div>
+    <div class="s" data-step="2"><span class="n">2</span> Allergies</div>
+    <div class="s" data-step="3"><span class="n">3</span> Insurance</div>
+    <div class="s" data-step="4"><span class="n">4</span> Prescriber</div>
+    <div class="s" data-step="5"><span class="n">5</span> Prescription</div>
+    <div class="s" data-step="6"><span class="n">6</span> Dispense &amp; Review</div>
+  </div>
+
+  <div class="banner bad" id="banner"></div>
+  <form id="rxform" novalidate>
+
+  <!-- STEP 1: PATIENT -->
+  <section class="card step" data-step="1">
+    <h2>Patient Demographics</h2>
+    <p class="sub">Verify identity against a government ID before dispensing.</p>
+    <fieldset><legend>Identity</legend>
+      <div class="grid">
+        <div class="f c4"><label>Last name <span class="req">*</span></label><input name="pt_last" autocomplete="off"><div class="err"></div></div>
+        <div class="f c4"><label>First name <span class="req">*</span></label><input name="pt_first" autocomplete="off"><div class="err"></div></div>
+        <div class="f c2"><label>MI</label><input name="pt_mi" maxlength="1"></div>
+        <div class="f c2"><label>Suffix</label><select name="pt_suffix"><option value="">—</option><option>Jr</option><option>Sr</option><option>II</option><option>III</option></select></div>
+        <div class="f c3"><label>Date of birth <span class="req">*</span></label><input name="pt_dob" placeholder="MM/DD/YYYY"><div class="hint">MM/DD/YYYY</div><div class="err"></div></div>
+        <div class="f c2"><label>Sex <span class="req">*</span></label><select name="pt_sex"><option value="">—</option><option>Male</option><option>Female</option><option>Other</option></select><div class="err"></div></div>
+        <div class="f c2"><label>Height</label><input name="pt_height" placeholder="5'10&quot;"></div>
+        <div class="f c2"><label>Weight (kg)</label><input name="pt_weight" placeholder="kg"></div>
+        <div class="f c3"><label>Medical record # (MRN)</label><input name="pt_mrn" placeholder="MRN-XXXXXX"></div>
+      </div>
+    </fieldset>
+    <fieldset><legend>Contact</legend>
+      <div class="grid">
+        <div class="f c6"><label>Address line 1 <span class="req">*</span></label><input name="pt_addr1"><div class="err"></div></div>
+        <div class="f c6"><label>Address line 2</label><input name="pt_addr2"></div>
+        <div class="f c4"><label>City <span class="req">*</span></label><input name="pt_city"><div class="err"></div></div>
+        <div class="f c3"><label>State <span class="req">*</span></label><select name="pt_state"><option value="">—</option></select><div class="err"></div></div>
+        <div class="f c2"><label>ZIP <span class="req">*</span></label><input name="pt_zip" placeholder="#####"><div class="err"></div></div>
+        <div class="f c3"><label>Phone <span class="req">*</span></label><input name="pt_phone" placeholder="(###) ###-####"><div class="err"></div></div>
+        <div class="f c6"><label>Email</label><input name="pt_email" placeholder="name@example.com"><div class="err"></div></div>
+        <div class="f c3"><label>Preferred language</label><select name="pt_lang"><option>English</option><option>Spanish</option><option>Mandarin</option><option>Vietnamese</option><option>Tagalog</option><option>Other</option></select></div>
+        <div class="f c3"><label>Pregnancy status</label><select name="pt_preg"><option value="">N/A</option><option>Not pregnant</option><option>Pregnant</option><option>Breastfeeding</option><option>Unknown</option></select></div>
+      </div>
+    </fieldset>
+  </section>
+
+  <!-- STEP 2: ALLERGIES -->
+  <section class="card step hide" data-step="2">
+    <h2>Allergies &amp; Adverse Reactions</h2>
+    <p class="sub">Record all known drug allergies. Mark "No known drug allergies" only if confirmed with the patient.</p>
+    <fieldset><legend>Allergy profile</legend>
+      <div class="f c12" style="flex-direction:row;align-items:center;gap:8px">
+        <input type="checkbox" id="nkda" name="nkda" style="width:auto"><label for="nkda" style="font-weight:600;color:var(--ink)">No known drug allergies (NKDA)</label>
+      </div>
+      <div id="allergyList">
+        <div class="row-allergy">
+          <div class="f" style="margin:0"><label>Allergen</label><input name="allergen" placeholder="e.g. Penicillin"></div>
+          <div class="f" style="margin:0"><label>Reaction</label><input name="reaction" placeholder="e.g. Hives, anaphylaxis"></div>
+          <div class="f" style="margin:0"><label>Severity</label><select name="severity"><option value="">—</option><option>Mild</option><option>Moderate</option><option>Severe</option></select></div>
+          <button type="button" class="btn x" onclick="removeAllergy(this)">✕</button>
+        </div>
+      </div>
+      <button type="button" class="btn ghost" onclick="addAllergy()">+ Add allergy</button>
+    </fieldset>
+  </section>
+
+  <!-- STEP 3: INSURANCE -->
+  <section class="card step hide" data-step="3">
+    <h2>Insurance / Third-Party Billing</h2>
+    <p class="sub">Enter the primary plan from the patient's pharmacy benefit card.</p>
+    <fieldset><legend>Primary plan</legend>
+      <div class="grid">
+        <div class="f c6"><label>Plan / PBM name <span class="req">*</span></label><input name="ins_plan"><div class="err"></div></div>
+        <div class="f c3"><label>Cardholder relationship</label><select name="ins_rel"><option>Self</option><option>Spouse</option><option>Child</option><option>Other</option></select></div>
+        <div class="f c3"><label>Cardholder ID / Member ID <span class="req">*</span></label><input name="ins_member"><div class="err"></div></div>
+        <div class="f c3"><label>BIN <span class="req">*</span></label><input name="ins_bin" placeholder="6 digits"><div class="hint">6-digit BIN</div><div class="err"></div></div>
+        <div class="f c3"><label>PCN</label><input name="ins_pcn"></div>
+        <div class="f c3"><label>Group #</label><input name="ins_group"></div>
+        <div class="f c3"><label>Person code</label><input name="ins_person" placeholder="01"></div>
+      </div>
+    </fieldset>
+    <fieldset><legend>Secondary (optional)</legend>
+      <div class="grid">
+        <div class="f c6"><label>Plan name</label><input name="ins2_plan"></div>
+        <div class="f c3"><label>Member ID</label><input name="ins2_member"></div>
+        <div class="f c3"><label>BIN</label><input name="ins2_bin"></div>
+      </div>
+    </fieldset>
+  </section>
+
+  <!-- STEP 4: PRESCRIBER -->
+  <section class="card step hide" data-step="4">
+    <h2>Prescriber Information</h2>
+    <p class="sub">Validate the prescriber NPI; DEA is required for controlled substances.</p>
+    <fieldset><legend>Prescriber</legend>
+      <div class="grid">
+        <div class="f c5"><label>Prescriber name <span class="req">*</span></label><input name="rx_prescriber" placeholder="Last, First, credentials"><div class="err"></div></div>
+        <div class="f c3"><label>NPI <span class="req">*</span></label><input name="rx_npi" placeholder="10 digits"><div class="hint">10-digit NPI</div><div class="err"></div></div>
+        <div class="f c4"><label>DEA #</label><input name="rx_dea" placeholder="AB1234563"><div class="hint">2 letters + 7 digits</div><div class="err"></div></div>
+        <div class="f c6"><label>Clinic / Practice</label><input name="rx_clinic"></div>
+        <div class="f c3"><label>Phone <span class="req">*</span></label><input name="rx_phone" placeholder="(###) ###-####"><div class="err"></div></div>
+        <div class="f c3"><label>Fax</label><input name="rx_fax"></div>
+      </div>
+    </fieldset>
+  </section>
+
+  <!-- STEP 5: PRESCRIPTION -->
+  <section class="card step hide" data-step="5">
+    <h2>Prescription Details</h2>
+    <p class="sub">Transcribe exactly as written. Confirm strength, sig, and day supply.</p>
+    <div class="interaction" id="ddi">⚠ Interaction alert: review against the patient's active medication profile before dispensing.</div>
+    <fieldset><legend>Drug</legend>
+      <div class="grid">
+        <div class="f c6"><label>Drug name <span class="req">*</span></label><input name="drug_name" placeholder="Generic or brand"><div class="err"></div></div>
+        <div class="f c3"><label>Strength <span class="req">*</span></label><input name="drug_strength" placeholder="e.g. 20 mg"><div class="err"></div></div>
+        <div class="f c3"><label>Dosage form <span class="req">*</span></label><select name="drug_form"><option value="">—</option><option>Tablet</option><option>Capsule</option><option>Solution</option><option>Suspension</option><option>Injection</option><option>Inhaler</option><option>Cream</option><option>Ointment</option><option>Patch</option><option>Suppository</option></select><div class="err"></div></div>
+        <div class="f c4"><label>NDC <span class="req">*</span></label><input name="drug_ndc" placeholder="#####-####-##"><div class="hint">5-4-2 format</div><div class="err"></div></div>
+        <div class="f c4"><label>Route</label><select name="drug_route"><option>Oral</option><option>Topical</option><option>Subcutaneous</option><option>Intramuscular</option><option>Intravenous</option><option>Inhalation</option><option>Ophthalmic</option><option>Otic</option><option>Rectal</option></select></div>
+        <div class="f c2"><label>Schedule</label><select name="drug_sched"><option value="">None</option><option>CII</option><option>CIII</option><option>CIV</option><option>CV</option></select></div>
+        <div class="f c2"><label>Date written <span class="req">*</span></label><input name="drug_datewritten" placeholder="MM/DD/YYYY"><div class="err"></div></div>
+      </div>
+    </fieldset>
+    <fieldset><legend>Directions &amp; quantity</legend>
+      <div class="grid">
+        <div class="f c12"><label>Sig / directions <span class="req">*</span></label><input name="drug_sig" placeholder="e.g. Take 1 tablet by mouth once daily"><div class="err"></div></div>
+        <div class="f c3"><label>Quantity <span class="req">*</span></label><input name="drug_qty" placeholder="#"><div class="err"></div></div>
+        <div class="f c3"><label>Days supply <span class="req">*</span></label><input name="drug_days" placeholder="#"><div class="err"></div></div>
+        <div class="f c3"><label>Refills <span class="req">*</span></label><input name="drug_refills" placeholder="0-11"><div class="err"></div></div>
+        <div class="f c3"><label>DAW code</label><select name="drug_daw"><option value="0">0 — No product selection</option><option value="1">1 — Substitution not allowed (prescriber)</option><option value="2">2 — Patient requested brand</option><option value="3">3 — Pharmacist selected</option><option value="4">4 — Generic not in stock</option><option value="5">5 — Brand dispensed as generic</option></select></div>
+        <div class="f c6"><label>Prior authorization #</label><input name="drug_pa"></div>
+        <div class="f c6" style="flex-direction:row;align-items:center;gap:8px;margin-top:18px"><input type="checkbox" id="sub_ok" name="sub_ok" style="width:auto" checked><label for="sub_ok" style="color:var(--ink);font-weight:600">Generic substitution permitted</label></div>
+      </div>
+    </fieldset>
+  </section>
+
+  <!-- STEP 6: DISPENSE & REVIEW -->
+  <section class="card step hide" data-step="6">
+    <h2>Dispensing &amp; Pharmacist Review</h2>
+    <p class="sub">Final verification by the dispensing pharmacist.</p>
+    <fieldset><legend>Dispensing</legend>
+      <div class="grid">
+        <div class="f c3"><label>Dispense date <span class="req">*</span></label><input name="disp_date" placeholder="MM/DD/YYYY"><div class="err"></div></div>
+        <div class="f c4"><label>NDC dispensed <span class="req">*</span></label><input name="disp_ndc" placeholder="#####-####-##"><div class="err"></div></div>
+        <div class="f c2"><label>Qty dispensed <span class="req">*</span></label><input name="disp_qty"><div class="err"></div></div>
+        <div class="f c3"><label>Lot #</label><input name="disp_lot"></div>
+        <div class="f c3"><label>Expiration</label><input name="disp_exp" placeholder="MM/YYYY"></div>
+        <div class="f c3"><label>Manufacturer</label><input name="disp_mfr"></div>
+        <div class="f c3"><label>RPh initials <span class="req">*</span></label><input name="disp_rph" maxlength="4" placeholder="e.g. JMD"><div class="err"></div></div>
+      </div>
+    </fieldset>
+    <fieldset><legend>Counseling &amp; attestation</legend>
+      <div class="grid">
+        <div class="f c6"><label>Counseling offered <span class="req">*</span></label>
+          <div style="display:flex;gap:16px;margin-top:4px">
+            <label style="font-weight:600;color:var(--ink)"><input type="radio" name="counsel" value="Accepted"> Accepted</label>
+            <label style="font-weight:600;color:var(--ink)"><input type="radio" name="counsel" value="Declined"> Declined</label>
+            <label style="font-weight:600;color:var(--ink)"><input type="radio" name="counsel" value="Not required"> Not required</label>
+          </div><div class="err"></div>
+        </div>
+        <div class="f c6"><label>Interaction check completed <span class="req">*</span></label>
+          <div style="display:flex;gap:16px;margin-top:4px">
+            <label style="font-weight:600;color:var(--ink)"><input type="radio" name="ddi_done" value="Yes"> Yes</label>
+            <label style="font-weight:600;color:var(--ink)"><input type="radio" name="ddi_done" value="No"> No</label>
+          </div><div class="err"></div>
+        </div>
+        <div class="f c12"><label>Counseling notes</label><textarea name="counsel_notes" rows="2"></textarea></div>
+        <div class="f c12" style="flex-direction:row;align-items:flex-start;gap:8px">
+          <input type="checkbox" id="attest" name="attest" style="width:auto;margin-top:3px">
+          <label for="attest" style="color:var(--ink);font-weight:600">I attest that this prescription has been reviewed for appropriateness, drug interactions, and accuracy, and is ready to dispense. <span class="req">*</span></label>
+        </div>
+        <div class="err c12" id="attestErr"></div>
+      </div>
+    </fieldset>
+    <fieldset><legend>Summary</legend>
+      <div class="summary" id="summary"></div>
+    </fieldset>
+  </section>
+
+  <!-- DONE -->
+  <section class="card step hide" data-step="done">
+    <div class="done-screen">
+      <div class="check">✓</div>
+      <h2 style="border:0">Prescription filled</h2>
+      <p class="sub">Record committed to the dispensing log.</p>
+      <p>Rx number</p>
+      <div class="rxno" id="rxno">—</div>
+    </div>
+  </section>
+
+  <div class="actions">
+    <button type="button" class="btn" id="backBtn" onclick="goBack()" style="visibility:hidden">← Back</button>
+    <div style="display:flex;gap:10px">
+      <span class="pill" id="stepPill">Step 1 of 6</span>
+      <button type="button" class="btn primary" id="nextBtn" onclick="goNext()">Next →</button>
+    </div>
+  </div>
+
+  </form>
+</div>
+
+<script>
+// ---- US states ----
+const STATES = ["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
+const stSel = document.querySelector('select[name=pt_state]');
+STATES.forEach(s=>{const o=document.createElement('option');o.textContent=s;stSel.appendChild(o);});
+
+// random-free deterministic RPh label so screenshots are stable
+document.getElementById('rphName').textContent = "—";
+
+let step = 1;
+const TOTAL = 6;
+
+function showStep(n){
+  document.querySelectorAll('.step').forEach(s=>s.classList.add('hide'));
+  const sel = document.querySelector(`.step[data-step="${n}"]`);
+  if(sel) sel.classList.remove('hide');
+  document.querySelectorAll('.steps .s').forEach(s=>{
+    const d = +s.dataset.step;
+    s.classList.toggle('active', d===n);
+    s.classList.toggle('done', d<n);
+  });
+  document.getElementById('backBtn').style.visibility = (n>1 && n<=TOTAL) ? 'visible':'hidden';
+  document.getElementById('stepPill').textContent = (n<=TOTAL)? `Step ${n} of ${TOTAL}` : '';
+  const nb = document.getElementById('nextBtn');
+  nb.textContent = (n===TOTAL) ? 'Fill prescription ✓' : 'Next →';
+  if(n==='done'){ nb.style.display='none'; document.getElementById('backBtn').style.visibility='hidden'; document.getElementById('stepPill').style.display='none'; }
+  if(n===6) renderSummary();
+  window.scrollTo(0,0);
+}
+
+function addAllergy(){
+  const list=document.getElementById('allergyList');
+  const row=list.firstElementChild.cloneNode(true);
+  row.querySelectorAll('input').forEach(i=>i.value='');
+  row.querySelector('select').selectedIndex=0;
+  list.appendChild(row);
+}
+function removeAllergy(btn){
+  const list=document.getElementById('allergyList');
+  if(list.children.length>1) btn.closest('.row-allergy').remove();
+}
+
+function setErr(name,msg){
+  const el=document.querySelector(`[name="${name}"]`);
+  if(!el) return;
+  el.classList.toggle('bad',!!msg);
+  const box=el.closest('.f')?.querySelector('.err');
+  if(box) box.textContent=msg||'';
+}
+const v = n => (document.querySelector(`[name="${n}"]`)?.value||'').trim();
+
+const RX = {
+  dob: /^(0[1-9]|1[0-2])\/(0[1-9]|[12]\d|3[01])\/(19|20)\d\d$/,
+  zip: /^\d{5}$/,
+  phone: /^\(\d{3}\)\s?\d{3}-\d{4}$/,
+  email: /^[^@\s]+@[^@\s]+\.[^@\s]+$/,
+  npi: /^\d{10}$/,
+  dea: /^[A-Za-z]{2}\d{7}$/,
+  bin: /^\d{6}$/,
+  ndc: /^\d{5}-\d{4}-\d{2}$/,
+  int: /^\d+$/,
+};
+
+function validateStep(n){
+  let ok=true; const fail=m=>{ok=false;return m;};
+  const need=(name,label)=>{ if(!v(name)){setErr(name,`${label} is required`);ok=false;} else setErr(name,''); };
+  if(n===1){
+    need('pt_last','Last name'); need('pt_first','First name');
+    if(!RX.dob.test(v('pt_dob'))) setErr('pt_dob', v('pt_dob')?'Use MM/DD/YYYY':'DOB is required'),ok=false; else setErr('pt_dob','');
+    need('pt_sex','Sex'); need('pt_addr1','Address'); need('pt_city','City'); need('pt_state','State');
+    if(!RX.zip.test(v('pt_zip'))) setErr('pt_zip', v('pt_zip')?'5-digit ZIP':'ZIP is required'),ok=false; else setErr('pt_zip','');
+    if(!RX.phone.test(v('pt_phone'))) setErr('pt_phone', v('pt_phone')?'(###) ###-####':'Phone is required'),ok=false; else setErr('pt_phone','');
+    if(v('pt_email') && !RX.email.test(v('pt_email'))) setErr('pt_email','Invalid email'),ok=false; else setErr('pt_email','');
+  }
+  if(n===2){
+    const nkda=document.getElementById('nkda').checked;
+    const anyAllergen=[...document.querySelectorAll('[name=allergen]')].some(i=>i.value.trim());
+    if(!nkda && !anyAllergen){ showBanner('Record at least one allergy or confirm NKDA.','bad'); ok=false; }
+    if(nkda && anyAllergen){ showBanner('NKDA is checked but allergies are listed — resolve the conflict.','bad'); ok=false; }
+  }
+  if(n===3){
+    need('ins_plan','Plan name'); need('ins_member','Member ID');
+    if(!RX.bin.test(v('ins_bin'))) setErr('ins_bin', v('ins_bin')?'6-digit BIN':'BIN is required'),ok=false; else setErr('ins_bin','');
+  }
+  if(n===4){
+    need('rx_prescriber','Prescriber'); need('rx_phone','Phone');
+    if(!RX.npi.test(v('rx_npi'))) setErr('rx_npi', v('rx_npi')?'NPI is 10 digits':'NPI is required'),ok=false; else setErr('rx_npi','');
+    if(v('rx_dea') && !RX.dea.test(v('rx_dea'))) setErr('rx_dea','DEA = 2 letters + 7 digits'),ok=false; else setErr('rx_dea','');
+    if(v('drug_sched') && !v('rx_dea')) { setErr('rx_dea','DEA required for controlled Rx'); ok=false; }
+  }
+  if(n===5){
+    need('drug_name','Drug'); need('drug_strength','Strength'); need('drug_form','Form'); need('drug_sig','Sig'); need('drug_datewritten','Date written');
+    if(!RX.ndc.test(v('drug_ndc'))) setErr('drug_ndc', v('drug_ndc')?'Use #####-####-##':'NDC is required'),ok=false; else setErr('drug_ndc','');
+    ['drug_qty','drug_days','drug_refills'].forEach(f=>{ if(!RX.int.test(v(f))) {setErr(f, v(f)?'Must be a number':'Required');ok=false;} else setErr(f,''); });
+    if(RX.int.test(v('drug_refills')) && +v('drug_refills')>11){ setErr('drug_refills','Max 11 refills'); ok=false; }
+    // schedule cross-check with prescriber DEA happens on step 4
+  }
+  if(n===6){
+    need('disp_date','Dispense date'); need('disp_qty','Qty dispensed'); need('disp_rph','RPh initials');
+    if(!RX.ndc.test(v('disp_ndc'))) setErr('disp_ndc', v('disp_ndc')?'Use #####-####-##':'Required'),ok=false; else setErr('disp_ndc','');
+    if(!document.querySelector('[name=counsel]:checked')){ document.querySelector('[name=counsel]').closest('.f').querySelector('.err').textContent='Select an option'; ok=false; }
+    if(!document.querySelector('[name=ddi_done]:checked')){ document.querySelector('[name=ddi_done]').closest('.f').querySelector('.err').textContent='Select an option'; ok=false; }
+    if(!document.getElementById('attest').checked){ document.getElementById('attestErr').textContent='You must attest before filling.'; ok=false; } else document.getElementById('attestErr').textContent='';
+  }
+  if(!ok && n!==2) showBanner('Please correct the highlighted fields.','bad');
+  if(ok) hideBanner();
+  return ok;
+}
+
+function showBanner(msg,kind){const b=document.getElementById('banner');b.textContent=msg;b.className=`banner ${kind} show`;}
+function hideBanner(){document.getElementById('banner').className='banner';}
+
+function goNext(){
+  if(step==='done') return;
+  if(!validateStep(step)) return;
+  if(step===TOTAL){ submitForm(); return; }
+  step++; showStep(step);
+}
+function goBack(){ if(typeof step==='number' && step>1){ step--; showStep(step); } }
+
+function renderSummary(){
+  const g=document.getElementById('summary');
+  const row=(k,val)=>`<div class="k">${k}</div><div class="v">${val||'—'}</div>`;
+  g.innerHTML =
+    `<h3>Patient</h3>`+
+    row('Name', `${v('pt_last')}, ${v('pt_first')} ${v('pt_mi')}`)+
+    row('DOB / Sex', `${v('pt_dob')} · ${v('pt_sex')}`)+
+    `<h3>Insurance</h3>`+
+    row('Plan', v('ins_plan'))+ row('Member / BIN', `${v('ins_member')} · ${v('ins_bin')}`)+
+    `<h3>Prescriber</h3>`+
+    row('Name', v('rx_prescriber'))+ row('NPI / DEA', `${v('rx_npi')} · ${v('rx_dea')||'—'}`)+
+    `<h3>Prescription</h3>`+
+    row('Drug', `${v('drug_name')} ${v('drug_strength')} ${v('drug_form')}`)+
+    row('Sig', v('drug_sig'))+
+    row('Qty / Days / Refills', `${v('drug_qty')} / ${v('drug_days')} / ${v('drug_refills')}`)+
+    row('NDC / Schedule', `${v('drug_ndc')} · ${v('drug_sched')||'none'}`);
+}
+
+function collectState(){
+  const data={};
+  new FormData(document.getElementById('rxform')).forEach((val,k)=>{
+    if(data[k]!==undefined){ data[k]=[].concat(data[k],val); } else data[k]=val;
+  });
+  data.allergies=[...document.querySelectorAll('.row-allergy')].map(r=>({
+    allergen:r.querySelector('[name=allergen]').value.trim(),
+    reaction:r.querySelector('[name=reaction]').value.trim(),
+    severity:r.querySelector('[name=severity]').value
+  })).filter(a=>a.allergen);
+  data.nkda=document.getElementById('nkda').checked;
+  data.attest=document.getElementById('attest').checked;
+  data.sub_ok=document.getElementById('sub_ok').checked;
+  data.counsel=document.querySelector('[name=counsel]:checked')?.value||'';
+  data.ddi_done=document.querySelector('[name=ddi_done]:checked')?.value||'';
+  return data;
+}
+
+let _rxno=null, _submitted=false;
+function submitForm(){
+  // deterministic Rx number derived from member id + drug so tests are stable
+  const seed=(v('ins_member')+v('drug_ndc')).replace(/\D/g,'').slice(-7).padStart(7,'0');
+  _rxno='RX'+seed;
+  _submitted=true;
+  document.getElementById('rxno').textContent=_rxno;
+  step='done'; showStep('done');
+}
+
+// ---- test hooks ----
+window.getFormState = () => ({...collectState(), rxNumber:_rxno, submitted:_submitted, step});
+window.gotoStep = (n)=>{ step=n; showStep(n); };
+
+showStep(1);
+</script>
+</body>
+</html>

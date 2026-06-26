@@ -361,6 +361,7 @@ def sampling_loop(
     thinking_effort: ThinkingEffort | None = None,
     max_iters: int = cfg.default_max_iters,
     interactive: bool = sys.stdin.isatty(),
+    pin_reference_images: bool = True,
 ) -> list[MessageParam]:
     """Run the agent. Each user message gets up to ``max_iters`` model turns.
 
@@ -387,7 +388,7 @@ def sampling_loop(
     # by identity so the pruner keeps them in context for the whole run while
     # the agent's own screenshots stay bounded by the sliding window.
     pinned_image_ids: set[int] = set()
-    if isinstance(task, list):
+    if pin_reference_images and isinstance(task, list):
         pinned_image_ids = {
             id(b)
             for b in task

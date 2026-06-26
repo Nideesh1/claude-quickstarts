@@ -39,6 +39,7 @@ class Model(StrEnum):
     SONNET_4_6 = "claude-sonnet-4-6"
     OPUS_4_6 = "claude-opus-4-6"
     OPUS_4_7 = "claude-opus-4-7"
+    OPUS_4_8 = "claude-opus-4-8"
 
 
 ThinkingEffort = Literal["off", "low", "medium", "high", "max"]
@@ -134,6 +135,14 @@ class Config:
     image_prune_min: int = 3
     image_prune_interval: int = 40
 
+    # Workaround for Ollama's /v1/messages endpoint, which silently DROPS images
+    # nested inside a tool_result block, so the agent goes blind in the loop.
+    # When true, screenshots are sent as top-level image blocks appended to the
+    # same user turn (a position it DOES process), and the tool_result keeps
+    # only its text. Leave false for the first-party Anthropic API, where images
+    # belong in the tool_result. Set CU_RELAY_IMAGES_TOP_LEVEL=true for Ollama.
+    relay_images_top_level: bool = False
+
     # Include the computer / computer_batch / open_application tools.
     enable_computer_use_tools: bool = True
     # Include the browser / browser_batch tools.
@@ -175,6 +184,7 @@ class Config:
             **{m.value: "medium" for m in Model},
             Model.HAIKU_4_5.value: "off",  # haiku-4-5 does not support output_config.effort
             Model.OPUS_4_7.value: "high",
+            Model.OPUS_4_8.value: "high",
         }
     )
 
@@ -287,12 +297,22 @@ if not cfg.extra_models and (legacy := os.environ.get("COMPUTER_USE_EXTRA_MODELS
 
 # Models that accept output_config.effort.
 EFFORT_SUPPORTED_MODELS = frozenset(
-    {Model.SONNET_4_6.value, Model.OPUS_4_6.value, Model.OPUS_4_7.value}
+    {
+        Model.SONNET_4_6.value,
+        Model.OPUS_4_6.value,
+        Model.OPUS_4_7.value,
+        Model.OPUS_4_8.value,
+    }
 )
 
 # Per the compaction docs; the loop silently disables the edit on other models.
 AUTOCOMPACTION_SUPPORTED_MODELS = frozenset(
-    {Model.SONNET_4_6.value, Model.OPUS_4_6.value, Model.OPUS_4_7.value}
+    {
+        Model.SONNET_4_6.value,
+        Model.OPUS_4_6.value,
+        Model.OPUS_4_7.value,
+        Model.OPUS_4_8.value,
+    }
 )
 
 ADVISOR_BETA = "advisor-tool-2026-03-01"

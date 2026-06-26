@@ -1,8 +1,10 @@
 """CLI entrypoint: `python -m computer_use "do something"`."""
 
 import argparse
+import base64
+import mimetypes
 from pathlib import Path
-from typing import get_args
+from typing import Any, get_args
 
 from constants import (
     ADVISOR_PROMPT_ADDENDUM,
@@ -46,6 +48,44 @@ def build_tools(scratch_dir: Path | None = None) -> ToolCollection:
     return ToolCollection(*tools)
 
 
+# Image media types the Anthropic Messages API accepts as image blocks.
+_SUPPORTED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp"}
+
+
+def build_task_content(task: str, image_paths: list[str] | None) -> str | list[dict[str, Any]]:
+    """Build the opening user message.
+
+    With no images this is just the task string. With ``--image`` paths it
+    becomes a content-block list: the task text, then each reference image
+    preceded by a short label. Images are sent as raw bytes (no resize/re-encode
+    -- they're for the model to look at, not to map click coordinates back to),
+    and any image in this opening message is pinned by the loop so the pruner
+    never strips it.
+    """
+    if not image_paths:
+        return task
+    blocks: list[dict[str, Any]] = [{"type": "text", "text": task}]
+    for n, raw in enumerate(image_paths, 1):
+        path = Path(raw)
+        if not path.is_file():
+            raise SystemExit(f"--image: file not found: {raw}")
+        media_type, _ = mimetypes.guess_type(path.name)
+        if media_type not in _SUPPORTED_IMAGE_TYPES:
+            raise SystemExit(
+                f"--image {raw}: unsupported type {media_type!r}; "
+                f"use one of {sorted(_SUPPORTED_IMAGE_TYPES)}"
+            )
+        data = base64.standard_b64encode(path.read_bytes()).decode("ascii")
+        blocks.append({"type": "text", "text": f"Reference image {n} ({path.name}):"})
+        blocks.append(
+            {
+                "type": "image",
+                "source": {"type": "base64", "media_type": media_type, "data": data},
+            }
+        )
+    return blocks
+
+
 def build_system_prompt(scratch_dir: Path | None) -> str:
     prompt = SYSTEM_PROMPT
     if cfg.enable_editor_tool and scratch_dir is not None:
@@ -58,6 +98,14 @@ def build_system_prompt(scratch_dir: Path | None) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(prog="computer_use")
     parser.add_argument("task", help="natural-language task for the agent")
+    parser.add_argument(
+        "--image",
+        action="append",
+        metavar="PATH",
+        help="reference image to attach to the task (repeatable). These are "
+        "pinned in context for the whole run -- never pruned -- to guide the "
+        "model's workflow.",
+    )
     parser.add_argument(
         "--model",
         choices=[m.value for m in Model] + list(cfg.extra_models),
@@ -82,6 +130,8 @@ def main() -> None:
     if not args.skip_preflight:
         check_and_warn(require=True)
 
+    task_content = build_task_content(args.task, args.image)
+
     traj = Trajectory(model=args.model, task=args.task)
     system_prompt = build_system_prompt(traj.scratch_dir)
     (traj.dir / "system_prompt.txt").write_text(system_prompt)
@@ -91,7 +141,7 @@ def main() -> None:
     try:
         sampling_loop(
             model=args.model,
-            task=args.task,
+            task=task_content,
             tools=tools,
             trajectory=traj,
             system_prompt=system_prompt,

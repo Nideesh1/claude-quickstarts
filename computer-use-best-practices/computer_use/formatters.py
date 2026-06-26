@@ -20,34 +20,51 @@ from anthropic.types import MessageParam, TextBlockParam
 _PLACEHOLDER: TextBlockParam = {"type": "text", "text": "[Image Omitted]"}
 
 
-def _image_slots(messages: list[MessageParam]) -> list[tuple[list[Any], int]]:
-    """Return (container, index) for every image block inside tool_result content,
-    in document order, so callers can replace them in place."""
+def _image_slots(
+    messages: list[MessageParam], pinned_ids: set[int] | None = None
+) -> list[tuple[list[Any], int]]:
+    """Return (container, index) for every image block, in document order, so
+    callers can replace them in place. Catches both images nested in a
+    tool_result (the default Anthropic shape) and top-level image blocks in a
+    user turn (the cfg.relay_images_top_level workaround for Ollama's
+    /v1/messages, which drops tool_result-nested media).
+
+    Image blocks whose ``id()`` is in ``pinned_ids`` are skipped entirely, so
+    they are never replaced with a placeholder. This is how reference images
+    attached to the opening task message stay in context for the whole run
+    while the agent's own screenshots are still bounded by the sliding window.
+    """
     slots: list[tuple[list[Any], int]] = []
     for msg in messages:
         content = msg["content"]
         if not isinstance(content, list):
             continue
-        for block in content:
-            if not isinstance(block, dict) or block.get("type") != "tool_result":
+        for i, block in enumerate(content):
+            if not isinstance(block, dict):
                 continue
-            inner = block.get("content")
-            if not isinstance(inner, list):
-                continue
-            for i, sub in enumerate(inner):
-                if isinstance(sub, dict) and sub.get("type") == "image":
-                    slots.append((inner, i))
+            if block.get("type") == "image":
+                if pinned_ids and id(block) in pinned_ids:
+                    continue
+                slots.append((content, i))
+            elif block.get("type") == "tool_result":
+                inner = block.get("content")
+                if not isinstance(inner, list):
+                    continue
+                for j, sub in enumerate(inner):
+                    if isinstance(sub, dict) and sub.get("type") == "image":
+                        slots.append((inner, j))
     return slots
 
 
 class StripOldestImages:
     """Keep only the most recent `keep` images. Simple but cache-hostile."""
 
-    def __init__(self, keep: int) -> None:
+    def __init__(self, keep: int, pinned_ids: set[int] | None = None) -> None:
         self.keep = keep
+        self.pinned_ids = pinned_ids
 
     def __call__(self, messages: list[MessageParam]) -> None:
-        slots = _image_slots(messages)
+        slots = _image_slots(messages, self.pinned_ids)
         for container, i in slots[: max(len(slots) - self.keep, 0)]:
             container[i] = dict(_PLACEHOLDER)
 
@@ -61,14 +78,21 @@ class StripImagesAtIntervals:
     only changes once every `interval` turns.
     """
 
-    def __init__(self, min_images: int, interval: int, max_message_mb: float | None = None) -> None:
+    def __init__(
+        self,
+        min_images: int,
+        interval: int,
+        max_message_mb: float | None = None,
+        pinned_ids: set[int] | None = None,
+    ) -> None:
         self.min_images = min_images
         self.interval = interval
         self.max_message_mb = max_message_mb
+        self.pinned_ids = pinned_ids
         self._offset = 0
 
     def __call__(self, messages: list[MessageParam]) -> None:
-        slots = _image_slots(messages)
+        slots = _image_slots(messages, self.pinned_ids)
         total = len(slots)
         self._offset = max(0, min(self._offset, total))
         keep = ((total - self._offset) % self.interval) + self.min_images
@@ -86,7 +110,7 @@ class StripImagesAtIntervals:
             f"and resetting interval cycle.",
             file=sys.stderr,
         )
-        slots = _image_slots(messages)
+        slots = _image_slots(messages, self.pinned_ids)
         for container, i in slots[: max(len(slots) - self.min_images, 0)]:
             container[i] = dict(_PLACEHOLDER)
         # _offset must reflect the *post*-prune image count so the next call's

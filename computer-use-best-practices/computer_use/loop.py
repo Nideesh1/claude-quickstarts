@@ -226,16 +226,21 @@ def _make_client(provider: Provider) -> AnthropicClient:
     return anthropic.Anthropic()
 
 
-def _make_image_pruner(max_message_mb: float | None = None) -> Callable[[list[MessageParam]], None]:
+def _make_image_pruner(
+    max_message_mb: float | None = None, pinned_ids: set[int] | None = None
+) -> Callable[[list[MessageParam]], None]:
     if cfg.image_prune_strategy == "none":
         return lambda _: None
 
     if cfg.image_prune_strategy == "interval":
         return StripImagesAtIntervals(
-            cfg.image_prune_min, cfg.image_prune_interval, max_message_mb=max_message_mb
+            cfg.image_prune_min,
+            cfg.image_prune_interval,
+            max_message_mb=max_message_mb,
+            pinned_ids=pinned_ids,
         )
 
-    return StripOldestImages(cfg.keep_n_most_recent_images)
+    return StripOldestImages(cfg.keep_n_most_recent_images, pinned_ids=pinned_ids)
 
 
 def _stream_and_render(
@@ -328,10 +333,28 @@ def _interrupted_result(tool_use_id: str) -> ToolResultBlockParam:
     }
 
 
+def _split_out_media(content: list[Any]) -> tuple[list[Any], list[Any]]:
+    """Pull image/document blocks out of tool_result content so the loop can
+    relay them as top-level user blocks instead. Used for the
+    cfg.relay_images_top_level workaround: Ollama's /v1/messages endpoint
+    ignores media nested in a tool_result, blinding the agent. Returns
+    (text_only_content, media_blocks)."""
+    text_blocks: list[Any] = []
+    media: list[Any] = []
+    for b in content:
+        if isinstance(b, dict) and b.get("type") in {"image", "document"}:
+            media.append(b)
+        else:
+            text_blocks.append(b)
+    if not text_blocks:
+        text_blocks = [{"type": "text", "text": "(screenshot relayed below)"}]
+    return text_blocks, media
+
+
 def sampling_loop(
     *,
     model: str,
-    task: str,
+    task: str | list[Any],
     tools: ToolCollection,
     trajectory: Trajectory,
     system_prompt: str = SYSTEM_PROMPT,
@@ -360,14 +383,26 @@ def sampling_loop(
     client_tool_params: list[Any] = list(
         tools.to_params(hosted_computer=cfg.use_hosted_computer_tool)
     )
-    prune = _make_image_pruner(PROVIDER_MAX_MESSAGE_MB[cfg.provider])
+    # Image blocks in the opening task message are reference material: pin them
+    # by identity so the pruner keeps them in context for the whole run while
+    # the agent's own screenshots stay bounded by the sliding window.
+    pinned_image_ids: set[int] = set()
+    if isinstance(task, list):
+        pinned_image_ids = {
+            id(b)
+            for b in task
+            if isinstance(b, dict) and b.get("type") == "image"
+        }
+    if pinned_image_ids:
+        render.info(f"pinned {len(pinned_image_ids)} reference image(s) (never pruned)")
+    prune = _make_image_pruner(PROVIDER_MAX_MESSAGE_MB[cfg.provider], pinned_image_ids)
 
     advisor_enabled = cfg.enable_advisor_tool
     advisor_uses = 0  # cumulative across compaction; messages alone can't tell us this.
     turns_since_advisor = 0
     turn = 0
 
-    next_user_message: str | None = task
+    next_user_message: str | list[Any] | None = task
     while next_user_message is not None:
         messages.append({"role": "user", "content": next_user_message})
         trajectory.record("user", next_user_message)
@@ -468,11 +503,15 @@ def sampling_loop(
 
             nudge = _should_nudge_batch(tool_uses)
             results: list[ToolResultBlockParam] = []
+            extra_media: list[Any] = []  # top-level blocks relayed after the tool_results
             try:
                 for tu in tool_uses:
                     res = tools.run(tu.name, tu.input)
                     render.tool_result(tu.name, res)
                     content = res.to_api_content()
+                    if cfg.relay_images_top_level:
+                        content, media = _split_out_media(content)
+                        extra_media.extend(media)
                     if nudge and not res.is_error:
                         content.append({"type": "text", "text": BATCH_REMINDER})
                     if advisor_nudge and not res.is_error:
@@ -493,12 +532,14 @@ def sampling_loop(
                 for tu in tool_uses:
                     if tu.id not in done_ids:
                         results.append(_interrupted_result(tu.id))
-                messages.append({"role": "user", "content": results})
-                trajectory.record("user", results)
+                user_content = [*results, *extra_media]
+                messages.append({"role": "user", "content": user_content})
+                trajectory.record("user", user_content)
                 break
 
-            messages.append({"role": "user", "content": results})
-            trajectory.record("user", results)
+            user_content = [*results, *extra_media]
+            messages.append({"role": "user", "content": user_content})
+            trajectory.record("user", user_content)
 
         # The for-loop can exit with messages ending in a user-role entry (Ctrl-C
         # during streaming, Ctrl-C during tool execution, or max_iters reached on

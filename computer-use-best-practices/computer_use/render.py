@@ -86,6 +86,10 @@ def usage(line: str) -> None:
     print(f"{DIM}{line}{RESET}")
 
 
+def info(line: str) -> None:
+    print(f"{DIM}[info] {line}{RESET}")
+
+
 def advisor_call(advisor_model: str) -> None:
     print(f"{DIM}→ advisor (consulting {advisor_model}…){RESET}")
 

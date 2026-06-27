@@ -7,6 +7,7 @@ We still route them through resize_and_encode for uniform JPEG encoding.
 """
 
 import io
+import os
 import time
 from typing import Any, ClassVar, Literal
 
@@ -131,7 +132,14 @@ class BrowserTool(Tool):
         if self._playwright is None:
             self._playwright = sync_playwright().start()
         if self._browser is None:
-            self._browser = self._playwright.chromium.launch(headless=True)
+            # Headless by default; set CU_BROWSER_HEADED=true to watch the
+            # Chromium window live (useful for demos). CU_BROWSER_SLOWMO_MS adds
+            # a per-action delay so the actions are visible to the eye.
+            _headed = os.getenv("CU_BROWSER_HEADED", "").lower() in ("1", "true", "yes")
+            _slowmo = int(os.getenv("CU_BROWSER_SLOWMO_MS", "0") or "0")
+            self._browser = self._playwright.chromium.launch(
+                headless=not _headed, slow_mo=_slowmo
+            )
         if self._page is None:
             ctx = self._browser.new_context(
                 viewport={"width": cfg.browser_viewport[0], "height": cfg.browser_viewport[1]}

@@ -50,6 +50,29 @@ def build_tools(scratch_dir: Path | None = None) -> ToolCollection:
 
 # Image media types the Anthropic Messages API accepts as image blocks.
 _SUPPORTED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp"}
+# File extensions globbed by --image-dir (each file is validated by media type in build_task_content).
+_SUPPORTED_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
+
+
+def collect_pinned_images(image_paths: list[str] | None, image_dir: str | None) -> list[str]:
+    """Merge explicit ``--image`` paths with every image found in ``--image-dir``.
+
+    The directory is the "drop your pinned references here" folder: any image in
+    it is pinned for the whole run, exactly like passing it with ``--image``.
+    """
+    paths: list[str] = list(image_paths or [])
+    if image_dir:
+        d = Path(image_dir)
+        if not d.is_dir():
+            raise SystemExit(f"--image-dir: not a directory: {image_dir}")
+        found = sorted(
+            p for p in d.iterdir() if p.is_file() and p.suffix.lower() in _SUPPORTED_IMAGE_EXTS
+        )
+        if not found:
+            raise SystemExit(f"--image-dir {image_dir}: no images found (.png/.jpg/.gif/.webp)")
+        print(f"pinning {len(found)} image(s) from {image_dir}/: {', '.join(p.name for p in found)}")
+        paths += [str(p) for p in found]
+    return paths
 
 
 def build_task_content(task: str, image_paths: list[str] | None) -> str | list[dict[str, Any]]:
@@ -107,6 +130,13 @@ def main() -> None:
         "model's workflow.",
     )
     parser.add_argument(
+        "--image-dir",
+        metavar="DIR",
+        help="folder of reference images; every image in it (.png/.jpg/.gif/.webp) "
+        "is pinned for the whole run, same as passing each with --image. Combines "
+        "with --image.",
+    )
+    parser.add_argument(
         "--model",
         choices=[m.value for m in Model] + list(cfg.extra_models),
         default=Model.SONNET_4_6.value,
@@ -130,7 +160,8 @@ def main() -> None:
     if not args.skip_preflight:
         check_and_warn(require=True)
 
-    task_content = build_task_content(args.task, args.image)
+    image_paths = collect_pinned_images(args.image, args.image_dir)
+    task_content = build_task_content(args.task, image_paths or None)
 
     traj = Trajectory(model=args.model, task=args.task)
     system_prompt = build_system_prompt(traj.scratch_dir)

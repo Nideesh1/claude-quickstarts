@@ -1,0 +1,4 @@
+# Keep the folder + README, ignore any reference images dropped here.
+*
+!.gitignore
+!README.md
